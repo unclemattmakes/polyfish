@@ -554,12 +554,16 @@ class CaptureMode {
    * the depth pass and the recorded pose cannot drift apart. Borrowing the renderer's XR camera would
    * work today and would depend on how three.js chooses to decompose a view matrix.
    */
-  readDepth(eyeIndex) {
+  readDepth(eyeIndex, atWidth = 0, atHeight = 0) {
     if (!captureConfig.depth) throw new Error('capture: depth is off; pass ?depth=1');
     const view = this.views[eyeIndex];
     if (!view) throw new Error(`capture: no view ${eyeIndex} to read depth for`);
-    const width = view.viewport?.width ?? captureConfig.width;
-    const height = view.viewport?.height ?? captureConfig.height;
+    // The caller can ask for a size, because the colour frame does not always come back at the
+    // viewport the runtime reported: through SteamVR the driver's screenshot is larger than the
+    // rect OpenXR named. Depth has to match the colour frame it sits beside or the depth stage
+    // reads the wrong pixel for every sample, so the size that wins is the one the caller saw.
+    const width = atWidth > 0 ? Math.round(atWidth) : (view.viewport?.width ?? captureConfig.width);
+    const height = atHeight > 0 ? Math.round(atHeight) : (view.viewport?.height ?? captureConfig.height);
 
     const gl = this.renderer.getContext();
     if (!gl.getExtension('EXT_color_buffer_float')) {
@@ -813,8 +817,8 @@ class CaptureMode {
       rigMatrix: () => this.rigMatrix(),
       grabFrame: () => this.grabFrame(),
       stillnessProbe: () => this.stillnessProbe(),
-      readDepth: (eye) => {
-        const { width, height, data } = this.readDepth(eye);
+      readDepth: (eye, atWidth, atHeight) => {
+        const { width, height, data } = this.readDepth(eye, atWidth, atHeight);
         // Structured clone would copy this fine, but the driver reads it over a JSON bridge, so it
         // crosses as base64 rather than as a hundred thousand numbers in an array literal.
         return { width, height, base64: base64OfFloats(data) };
