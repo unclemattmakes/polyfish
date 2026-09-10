@@ -38,6 +38,11 @@ Format: package.json uses `"1.0.0"`, VR_BUILD_VERSION uses `"v1.0.0"` (prefixed 
 - **End credits**: DOM-based for all platforms; VR exits session first, then plays DOM credits on flat screen.
 - **State**: Centralized in `GameState.js` (GS). All systems read/write mutable state through GS — no scattered singletons.
 - **Modes**: NarrativeMode (default), ModelViewerMode, EditorMode. Switching deactivates ALL entities (clean slate).
+- **Capture mode** (`?capture=1`, `src/capture/CaptureMode.js`): freezes the world and exposes
+  `window.__capture` so the sibling splat tool can drive an emulated headset and read frames back.
+  Inert otherwise. If you change what animates, or the renderer's size or alpha, read that file
+  first — a capture depends on the frozen scene being genuinely still and on the canvas being
+  readable, and both fail silently.
 
 ## Dev server
 

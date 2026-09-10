@@ -18,8 +18,12 @@ class SceneManager {
   /**
    * Initialize the scene, camera, and renderer
    * @param {HTMLElement} container - The DOM element to attach renderer to
+   * @param {Object} [overrides] - Capture mode's renderer settings. When `fixedSize` is set the
+   *   canvas is the size given here and stays that size: a capture is a fixed number of pixels,
+   *   recorded in its manifest, so neither device pixel ratio nor a window resize may touch it.
+   *   See src/capture/CaptureMode.js.
    */
-  init(container) {
+  init(container, overrides = null) {
     // Create renderer with high-quality settings
     const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     // VR headsets (Quest 3) register as mobile via ontouchstart but have
@@ -30,8 +34,9 @@ class SceneManager {
     const params = new URLSearchParams(window.location.search);
     const useHiDPR = params.has('useHiDPR') ? params.get('useHiDPR') !== '0' : !useMobileGfx;
     this.renderer = new THREE.WebGLRenderer({
-      antialias: true, // MSAA everywhere — modern mobile GPUs handle it fine
-      alpha: true,
+      antialias: overrides?.antialias ?? true, // MSAA everywhere — modern mobile GPUs handle it fine
+      alpha: overrides?.alpha ?? true,
+      preserveDrawingBuffer: overrides?.preserveDrawingBuffer ?? false,
       powerPreference: 'default',
     });
     // Cap pixel ratio based on effective pixel count, not just raw DPR.
@@ -46,8 +51,14 @@ class SceneManager {
     const hardCap = useHiDPR ? 2 : 1.0;
     const effectiveCap = MAX_EFFECTIVE_WIDTH / window.innerWidth;
     const maxDPR = Math.min(rawDPR, hardCap, effectiveCap);
-    this.renderer.setPixelRatio(Math.max(maxDPR, 0.75)); // floor at 0.75 to avoid blurriness
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    if (overrides?.fixedSize) {
+      this.fixedSize = { width: overrides.width, height: overrides.height };
+      this.renderer.setPixelRatio(overrides.pixelRatio ?? 1);
+      this.renderer.setSize(overrides.width, overrides.height, false);
+    } else {
+      this.renderer.setPixelRatio(Math.max(maxDPR, 0.75)); // floor at 0.75 to avoid blurriness
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
@@ -251,6 +262,9 @@ class SceneManager {
    * Handle window resize events
    */
   onWindowResize() {
+    // A capture's canvas is the size its manifest says it is. Resizing it mid-run would change the
+    // intrinsics for the frames after the resize and nothing would record that it happened.
+    if (this.fixedSize) return;
     const width = window.innerWidth;
     const height = window.innerHeight;
 

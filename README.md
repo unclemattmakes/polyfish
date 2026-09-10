@@ -69,6 +69,38 @@ Toggle features via query string for performance tuning or debugging:
 ?debug             Enable debug logging
 ```
 
+## Capture mode
+
+PolyFish doubles as a test subject for a sibling tool that captures rendered worlds as Gaussian
+splats. `?capture=1` puts it in a state that can be photographed from the outside: it enters an
+emulated VR session, runs the ecosystem for a warmup and then freezes everything that moves, turns
+off fog and every view-dependent effect, hides the VR chrome, keeps the camera rig at the origin, and
+exposes `window.__capture` so a driver can set the headset pose, read back the views the frame was
+actually rendered from, grab the canvas, and read exact depth.
+
+```
+?capture=1&w=1024&h=768&warmup=25&ipd=0.063&fovy=90&depth=1&aa=0
+```
+
+| Parameter | Meaning |
+|---|---|
+| `w`, `h` | per-eye resolution. In stereo the canvas is `2w` wide |
+| `ipd` | stereo baseline in metres; `0` renders one mono view per pose |
+| `fovy` | vertical field of view in degrees |
+| `warmup` | seconds of simulation before the freeze, so kelp and creatures exist |
+| `near`, `far` | clip planes, defaulting to 0.1 and 200 rather than the app's 0.08 and 800, because a depth buffer spends its precision near the eye |
+| `depth` | render the depth pass |
+| `aa` | multisampling. `0` makes frames bit-reproducible |
+
+It is inert without `?capture=1`, and the twelve lines it adds to `main.js` are all behind that flag.
+`src/capture/CaptureMode.js` is the whole of it; the tool's side is `docs/fake-headset.md` in the
+splattool repo.
+
+**The browser window has to be the canvas size.** The emulated runtime sets the canvas from
+`window.innerWidth` when a session starts and builds the projection and viewports from it, so the
+window decides the capture resolution. `window.__capture.status().canvasMatchesRequest` says whether
+they agree.
+
 ## Tech Stack
 
 - **Three.js r170** - 3D rendering and scene management

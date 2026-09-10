@@ -62,6 +62,7 @@ import { ModelViewerMode } from "./modes/ModelViewerMode.js";
 import { EditorMode } from "./modes/EditorMode.js";
 import { DesktopHints } from "./input/DesktopHints.js";
 import { TitleScreen } from "./systems/TitleScreen.js";
+import { CAPTURE, captureMode } from "./capture/CaptureMode.js";
 import { buildDevPanel } from "./systems/DevPanel.js";
 import { PerfMonitor } from "./systems/PerfMonitor.js";
 import { PopulationGraph } from "./systems/PopulationGraph.js";
@@ -90,6 +91,19 @@ const useMobileDefaults = isMobile && !isVRCapable;
 // Three tiers: desktop (all ON), VR headset (selective), phone (all OFF).
 // Override any flag: ?useCaustics (enable) or ?useCaustics=0 (disable).
 const _params = new URLSearchParams(window.location.search);
+// Effects a splat capture cannot have on, whatever the platform defaults say. Two of them blur the
+// image (depth of field, god rays), one puts particles between the camera and the subject (marine
+// snow), one animates the lighting (caustics), and one changes the framebuffer size mid-run
+// (adaptive resolution), which would silently change the intrinsics partway through a capture.
+// An explicit URL parameter still wins, so a capture can turn one back on deliberately.
+const CAPTURE_FORCES_OFF = new Set([
+	"useCaustics",
+	"useGodrays",
+	"useDOF",
+	"useSnow",
+	"useFullSnow",
+	"adaptiveRes",
+]);
 function flag(
 	name,
 	desktopDefault = true,
@@ -97,6 +111,7 @@ function flag(
 	vrDefault = undefined,
 ) {
 	if (_params.has(name)) return _params.get(name) !== "0";
+	if (CAPTURE && CAPTURE_FORCES_OFF.has(name)) return false;
 	if (isVRDevice && vrDefault !== undefined) return vrDefault;
 	return useMobileDefaults ? mobileDefault : desktopDefault;
 }
@@ -403,10 +418,21 @@ async function init() {
 		copyrightEl.textContent += ` |     ${VR_BUILD_VERSION}`;
 	}
 
+	// 0b. Capture mode: install the emulated WebXR runtime first of all. three.js's VRButton asks
+	//     navigator.xr whether immersive-vr is supported the moment it is constructed, so anything
+	//     later than this is too late.
+	if (CAPTURE) {
+		loadingProgress("Installing emulated headset", 3);
+		await captureMode.installRuntime();
+	}
+
 	// 1. Scene, renderer, camera
 	loadingProgress("Setting up scene", 5);
 	diagLog("1. SceneManager.init...");
-	const renderer = sceneManager.init(document.body);
+	const renderer = sceneManager.init(
+		document.body,
+		CAPTURE ? captureMode.rendererOverrides() : null,
+	);
 	const scene = sceneManager.getScene();
 	const camera = sceneManager.getCamera();
 
@@ -422,8 +448,15 @@ async function init() {
 		// Set initial VR rig position to match camera — in XR mode the camera's own
 		// local position is ignored, only the rig's world transform matters.
 		// Without this, entering VR before clicking "Start" puts you at (0,0,0).
-		xrManager._startPos = camera.position.clone();
-		xrManager._startPos.y -= 1.6; // approximate eye height offset for local-floor
+		if (CAPTURE) {
+			// Leaving this null keeps the rig at the origin, so a pose the driver sends is the pose
+			// the scene is rendered from with no offset in between. The driver refuses to capture
+			// unless the rig's world matrix is the identity, so this is checked rather than trusted.
+			xrManager._startPos = null;
+		} else {
+			xrManager._startPos = camera.position.clone();
+			xrManager._startPos.y -= 1.6; // approximate eye height offset for local-floor
+		}
 
 		// Auto-start the experience when entering VR while the title screen is showing.
 		// The 2D HTML title overlay is invisible in VR, so we bypass it automatically.
@@ -795,10 +828,27 @@ async function init() {
 		});
 	} // end !MINIMAL
 
+	// 15b. Capture mode: hand the module the objects it drives, and suppress the VR chrome. The
+	//      fade-to-black on session start is the one that matters: it is animated out by
+	//      XRManager.update, which the frozen render path never calls, so a capture would otherwise
+	//      grab a hundred black frames.
+	let loopFn = gameLoop;
+	if (CAPTURE) {
+		captureMode.attach({
+			renderer,
+			scene,
+			camera,
+			rig: xrManager?.rig ?? null,
+			sceneManager,
+		});
+		if (xrManager) captureMode.suppressVrChrome(xrManager);
+		loopFn = captureMode.wrapLoop(gameLoop);
+	}
+
 	// 16. Start render loop BEFORE title screen so VR/AR sessions can render
 	//     while the title overlay is still showing (Quest: user taps ENTER VR first).
 	diagLog("16. Starting render loop (pre-title)...");
-	renderer.setAnimationLoop(gameLoop);
+	renderer.setAnimationLoop(loopFn);
 
 	// 16b. Title screen — show logo, wait for click before starting narrative
 	if (!MINIMAL) {
@@ -810,7 +860,7 @@ async function init() {
 
 	// 17b. Auto-restart loop if WebGL context is restored after a loss
 	renderer.domElement.addEventListener("webglcontextrestored", () => {
-		sceneManager.restoreAnimationLoop(gameLoop);
+		sceneManager.restoreAnimationLoop(loopFn);
 	});
 
 	// 17c. Diag watchdog — detect if render loop silently dies
@@ -827,6 +877,30 @@ async function init() {
 		}, 2000);
 	}
 
+	// 17d. The test hook. Thirteen Playwright specs in e2e/ read window.__debug and every one of
+	//      them has been failing on a hook nothing defined any more. The live values are getters, so
+	//      a spec that polls stageTimer sees it move rather than reading a snapshot from startup.
+	window.__debug = {
+		scene: sceneManager.getScene(),
+		camera: sceneManager.getCamera(),
+		renderer,
+		cameraController,
+		modeManager,
+		fishPool,
+		dolphinPool,
+		manateePool,
+		foodPool,
+		seedPool,
+		plantPool,
+		get stageTimer() {
+			return GS.stageTimer;
+		},
+		get timeScale() {
+			return timeScale;
+		},
+		GS,
+	};
+
 	// 18. Dismiss loading screen, then fade in from black
 	loadingProgress("Ready", 100);
 	dismissLoadingScreen();
@@ -836,7 +910,7 @@ async function init() {
 
 	// 19. Load audio clips AFTER all heavy init (models, WASM, pools) is done
 	// so decoding doesn't compete with startup and cause frame drops.
-	audioManager.loadClips();
+	if (!CAPTURE) audioManager.loadClips();
 
 	console.log("[PolyFish] Initialized — click to begin.");
 }
@@ -1179,8 +1253,13 @@ function gameLoop() {
 			}
 		}
 
+		// Capture mode: run the ecosystem for its warmup, then freeze. The freeze reuses the
+		// render-only path below rather than adding a second one, so there is one code path that
+		// has to be still instead of two that have to agree.
+		if (CAPTURE) captureMode.tick(rawDt);
+
 		// ?noSim or ?minimal — skip all simulation, just render the static scene (iOS debug)
-		if (_params.has("noSim") || MINIMAL) {
+		if (_params.has("noSim") || MINIMAL || captureMode.frozen) {
 			// Render only — no physics, no creature updates, no camera updates
 			const renderer = sceneManager.getRenderer();
 			const scene = sceneManager.getScene();

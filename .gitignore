@@ -5,3 +5,7 @@ Thumbs.db
 *.log
 package-lock.json
 .fuse_hidden*
+
+# Playwright run artifacts
+test-results/
+playwright-report/
