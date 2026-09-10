@@ -422,7 +422,7 @@ async function init() {
 	//     navigator.xr whether immersive-vr is supported the moment it is constructed, so anything
 	//     later than this is too late.
 	if (CAPTURE) {
-		loadingProgress("Installing emulated headset", 3);
+		loadingProgress("Preparing headset", 3);
 		await captureMode.installRuntime();
 	}
 

@@ -72,6 +72,16 @@ export const captureConfig = {
    * nondeterminism comes from: see `stillnessProbe`.
    */
   antialias: params.get('aa') !== '0',
+  /**
+   * Which headset to talk to.
+   *
+   * `emulated` installs IWER in the page and the driver sets the pose through `setPose`. `native`
+   * leaves `navigator.xr` alone, so the page talks to whatever runtime the browser has: on Windows
+   * that is SteamVR, and the pose then comes from a virtual HMD driver being fed from outside the
+   * browser entirely. The page cannot set the pose in that mode and does not try to; it reads back
+   * what it was given, which is the half that matters.
+   */
+  xr: params.get('xr') === 'native' ? 'native' : 'emulated',
 };
 
 /** The effects a capture has to have off, and the names the manifest records them under. */
@@ -106,6 +116,19 @@ class CaptureMode {
    * emulator in: this call is behind `CAPTURE`, and the import is inside it.
    */
   async installRuntime() {
+    if (captureConfig.xr === 'native') {
+      // Nothing to install. The browser's own runtime is the point of this mode, and replacing it
+      // would be the exact opposite of what was asked for.
+      const supported = await navigator.xr?.isSessionSupported?.('immersive-vr');
+      if (!supported) {
+        throw new Error(
+          'capture: ?xr=native was asked for, but this browser reports no immersive-vr support. ' +
+          'A VR runtime has to be installed and running, with a headset or a virtual one.',
+        );
+      }
+      this._note("using the browser's own WebXR runtime; no emulator installed");
+      return null;
+    }
     const { XRDevice, metaQuest3 } = await import('iwer');
     // The package's index does not re-export its version, and the manifest records which build of the
     // emulator produced a capture, so this reaches for the module that does hold it and shrugs if the
@@ -173,6 +196,11 @@ class CaptureMode {
    * trainer fed slightly wrong colours produces a slightly wrong splat with nothing to point at.
    */
   rendererOverrides() {
+    if (captureConfig.xr === 'native') {
+      // The runtime owns the framebuffer in this mode, so forcing a canvas size would decide
+      // nothing and would only make the on-screen mirror the wrong shape.
+      return { alpha: false, preserveDrawingBuffer: true, antialias: captureConfig.antialias, pixelRatio: 1 };
+    }
     return {
       alpha: false,
       preserveDrawingBuffer: true,
@@ -272,25 +300,39 @@ class CaptureMode {
       return;
     }
 
+    // Where the viewport comes from depends on how the runtime was given its framebuffer, and both
+    // ways happen here. The emulated runtime takes an `XRWebGLLayer`, so `baseLayer` is set and knows
+    // each eye's rectangle. A real runtime that supports layers gets an `XRProjectionLayer` from
+    // three.js instead, and then `baseLayer` is **null** and asking it for a viewport reports none at
+    // all: the first native run through SteamVR returned zero views for exactly that reason. three's
+    // own per-eye cameras carry the viewport it rendered with in both cases, so they are the fallback.
     const layer = frame.session.renderState.baseLayer;
+    const xrCameras = this.renderer?.xr?.getCamera?.()?.cameras ?? [];
+    const viewportFor = (view, index) => {
+      if (layer) {
+        const v = layer.getViewport(view);
+        if (v) return { x: v.x, y: v.y, width: v.width, height: v.height };
+      }
+      const c = xrCameras[index]?.viewport;
+      return c ? { x: c.x, y: c.y, width: c.z, height: c.w } : null;
+    };
+
     // A view with an empty viewport was not drawn and has no pixels to read. The emulated runtime
     // always reports both eyes, and in mono it gives the right one a width of zero rather than
     // leaving it out, so this is an ordinary case and not an error: `?ipd=0` produces one rendered
     // view and one placeholder. Dropping it here makes `readViews()` mean "the views this frame was
     // actually rendered from", which is what every caller wants and what makes the count worth
     // checking.
-    this.views = pose.views.filter((view) => {
-      const viewport = layer ? layer.getViewport(view) : null;
-      return viewport != null && viewport.width > 0 && viewport.height > 0;
-    }).map((view) => {
-      const viewport = layer.getViewport(view);
+    this.views = pose.views.map((view, index) => ({ view, viewport: viewportFor(view, index) }))
+      .filter(({ viewport }) => viewport != null && viewport.width > 0 && viewport.height > 0)
+      .map(({ view, viewport }) => {
       return {
         eye: view.eye,
         // Column-major, exactly as WebXR hands them over. The tool transposes on the way into its
         // manifest, in one place, rather than anyone here guessing which convention it wants.
         transform: Array.from(view.transform.matrix),
         projection: Array.from(view.projectionMatrix),
-        viewport: { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height },
+        viewport,
       };
     });
   }
@@ -659,7 +701,10 @@ class CaptureMode {
         ? { width: this.renderer.domElement.width, height: this.renderer.domElement.height }
         : null,
       wanted: this.canvasSize(),
-      canvasMatchesRequest: this._canvasMatchesRequest(),
+      // A native runtime decides its own framebuffer size, so there is nothing here for the driver
+      // to insist on and it is told so rather than being handed a false mismatch.
+      canvasMatchesRequest: captureConfig.xr === 'native' ? true : this._canvasMatchesRequest(),
+      xr: captureConfig.xr,
     };
   }
 
@@ -696,7 +741,12 @@ class CaptureMode {
       truth: () => this.truth(),
       terrainHeight: (x, z) => getTerrainHeight(x, z),
       setPose: (position, quaternion) => {
-        if (!this.xrDevice) throw new Error('capture: no emulated device; this is a native XR run');
+        if (!this.xrDevice) {
+          throw new Error(
+            "capture: this is a native XR run, so the pose is the runtime's to set, not the page's. " +
+            'Drive the headset from outside the browser and read it back with readViews().',
+          );
+        }
         this.xrDevice.position.set(position[0], position[1], position[2]);
         this.xrDevice.quaternion.set(quaternion[0], quaternion[1], quaternion[2], quaternion[3]);
         return this.frame;
