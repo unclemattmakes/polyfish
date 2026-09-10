@@ -31,6 +31,7 @@
 
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import GS from '../core/GameState.js';
 import { getTerrainHeight } from '../utils/Terrain.js';
 import { VR_BUILD_VERSION } from '../rendering/VRDebugPanel.js';
 
@@ -61,8 +62,22 @@ export const captureConfig = {
   ipd: Math.max(0, number('ipd', 0.063)),
   /** Vertical field of view in degrees. */
   fovy: number('fovy', 90),
-  /** Seconds of simulation to run before freezing, so kelp and creatures exist. */
+  /**
+   * Seconds of **simulated** time to run before freezing, not seconds of wall clock.
+   *
+   * The ecosystem spawns in stages — fish at 1 s, manatees at 40, dolphins at 100 — and kelp only
+   * grows from seeds the fish drop after that, so a scene worth capturing is a few minutes in. At
+   * `timescale` 10 those minutes cost a fraction of the wall clock.
+   */
   warmup: Math.max(0, number('warmup', 25)),
+  /**
+   * Simulation steps per rendered frame during the warmup, which is how the fast-forward works.
+   *
+   * The app already sub-steps for its own time-scale control, running the whole simulation N times
+   * at the true frame delta rather than once at N times the delta, so physics and creature AI stay
+   * in step. This borrows that: it is the same code path a person uses with the `+` key.
+   */
+  timescale: Math.max(1, Math.round(number('timescale', 1))),
   near: number('near', 0.1),
   far: number('far', 200),
   depth: params.get('depth') !== '0',
@@ -349,7 +364,9 @@ class CaptureMode {
     // spawning once the title screen is dismissed, which happens on session start, so counting from
     // page load would spend the warmup on an empty seabed.
     if (!this.renderer?.xr?.isPresenting) return;
-    this._elapsedSinceStart += dt;
+    // Simulated seconds, not wall-clock ones: the loop runs the simulation `timescale` times per
+    // frame, so this is the clock the stage events and the kelp are actually living on.
+    this._elapsedSinceStart += dt * captureConfig.timescale;
     if (this._elapsedSinceStart >= captureConfig.warmup) {
       this._warmupDone = true;
       this.freeze();
@@ -687,6 +704,7 @@ class CaptureMode {
       frame: this.frame,
       frozen: this.frozen,
       warmupRemaining: Math.max(0, captureConfig.warmup - this._elapsedSinceStart),
+      census: this.census(),
       presenting: !!this.renderer?.xr?.isPresenting,
       views: this.views.length,
       rig: this.rigMatrix(),
@@ -715,6 +733,70 @@ class CaptureMode {
     return canvas.width === want.width && canvas.height === want.height;
   }
 
+  /**
+   * What is actually in the scene.
+   *
+   * A warmup that ran is not the same as a scene worth capturing. The ecosystem can collapse, a
+   * spawn stage can be missed, and an empty seabed reconstructs perfectly while proving nothing about
+   * a capture of anything. The driver waits on these counts rather than on a stopwatch.
+   */
+  census() {
+    // `getActiveCount()` is the same call HUDSystem makes for the population counter, and the field
+    // names are its field names, so the driver waits on exactly the numbers the app already shows
+    // rather than on a second count of the same pools that could drift from them.
+    const count = (pool) => pool?.getActiveCount?.() ?? 0;
+    return {
+      fish: count(GS.fishPool),
+      dolphin: count(GS.dolphinPool),
+      manatee: count(GS.manateePool),
+      plant: count(GS.plantPool),
+      food: count(GS.foodPool),
+      seed: count(GS.seedPool),
+      simulatedSeconds: this._elapsedSinceStart,
+      stageTimer: GS.stageTimer,
+    };
+  }
+
+  /**
+   * Where the living content actually is, as a world-space box over the active plants.
+   *
+   * A capture volume placed by guesswork sits over empty seabed as often as not: kelp grows from
+   * seeds the fish happen to drop, so nobody knows in advance where it will be. Asking costs
+   * nothing and puts the rig on the subject.
+   *
+   * Plants only, deliberately. They are the static geometry a splat is actually made of, and they
+   * are what the frozen scene has most of. Fish wander far enough to stretch the box around water
+   * with nothing in it.
+   */
+  contentBounds() {
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    let counted = 0;
+    GS.plantPool?.forEachActive?.((plant) => {
+      const p = plant.mesh?.position ?? plant.position;
+      if (!p) return;
+      counted++;
+      for (let i = 0; i < 3; i++) {
+        const v = [p.x, p.y, p.z][i];
+        if (v < min[i]) min[i] = v;
+        if (v > max[i]) max[i] = v;
+      }
+    });
+    if (counted === 0) return { count: 0, min: null, max: null, center: null, size: null };
+    return {
+      count: counted,
+      min,
+      max,
+      center: [0, 1, 2].map((i) => (min[i] + max[i]) / 2),
+      size: [0, 1, 2].map((i) => max[i] - min[i]),
+    };
+  }
+
+  /** Simulation sub-steps per frame during the warmup. One means real time. */
+  warmupTimescale() {
+    return captureConfig.timescale;
+  }
+
   /** The scene's own truth, for a check that measures a reconstruction against the formula. */
   truth() {
     return { surfaceY: CONFIG.surfaceY, terrainFormula: 'sin(0.05x) * cos(0.04z) * 2 - 7.81' };
@@ -739,6 +821,8 @@ class CaptureMode {
       },
       freeze: () => this.freeze(),
       truth: () => this.truth(),
+      census: () => this.census(),
+      contentBounds: () => this.contentBounds(),
       terrainHeight: (x, z) => getTerrainHeight(x, z),
       setPose: (position, quaternion) => {
         if (!this.xrDevice) {

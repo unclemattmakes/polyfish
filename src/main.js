@@ -834,6 +834,11 @@ async function init() {
 	//      grab a hundred black frames.
 	let loopFn = gameLoop;
 	if (CAPTURE) {
+		// The fast-forward. This is the app's own time-scale control, the one the `+` key drives in
+		// dev mode: the loop runs the whole simulation this many times per frame at the true frame
+		// delta, so a few minutes of ecosystem costs a fraction of the wall clock and the physics and
+		// the creature AI still see the steps they expect.
+		timeScale = captureMode.warmupTimescale();
 		captureMode.attach({
 			renderer,
 			scene,
