@@ -30,6 +30,7 @@ export const SPLASH_WORDS = [
   'doughnuts',
   'mistakes',
   'games',
+  'Faceted Flight',
   'PolyFish',
 ];
 
