@@ -408,131 +408,151 @@
         max-width: 80vw;
       }
     }
-    /* Loading screen — pure CSS, shows instantly before any JS loads */
-    #loading-screen {
+    /* ── Developer splash ─────────────────────────────────────────────
+       "Uncle Matt Makes: ___" in unclemattmakes.com's own colours (cream
+       paper, walnut ink, ember amber), the same splash Faceted Flight opens
+       with. src/rendering/DevSplash.js drives it and says when it goes.
+       Visible from the first paint, so there is no flash of the game before
+       the module runs. */
+    #dev-splash {
+      --paper: #f2e9d8;
+      --walnut: #2a1d12;
+      --ember: #e8923a;
+      --rh: 1.2em;
       position: fixed;
       inset: 0;
       z-index: 200;
-      background: #0a1929;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      transition: opacity 4s ease-out;
-      overflow: hidden;
+      padding: 16px;
+      background: var(--paper);
+      color: var(--walnut);
+      color-scheme: light;
     }
-    #loading-screen.fade-out {
+    /* The lockup: the round mascot on the left, the wordmark beside it, the
+       blank under "Uncle Matt Makes:". */
+    .dev-splash__lockup {
+      display: flex;
+      align-items: center;
+      gap: 0.42em;
+      max-width: 100%;
+      font: 700 clamp(30px, 6.2vw, 84px) / 1.05 Bitter, Georgia, "Times New Roman", serif;
+      letter-spacing: -0.02em;
       opacity: 0;
-      pointer-events: none;
     }
-    /* Subtle underwater caustic light wash */
-    #loading-screen::before {
-      content: '';
+    /* Shown once Bitter and the portrait are in, or the module stops waiting. */
+    #dev-splash.is-faced .dev-splash__lockup { animation: dev-splash-in 450ms ease forwards; }
+    .dev-splash__portrait {
+      flex: none;
+      width: 2.35em;
+      height: 2.35em;
+      border-radius: 50%;
+      border: 3px solid rgba(42, 29, 18, 0.28);
+      background: #ece1cb;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 300ms ease;
+    }
+    .dev-splash__portrait.is-loaded { opacity: 1; }
+    .dev-splash__mark {
+      margin: 0;
+      font: inherit;
+      text-align: left;
+    }
+    /* One grid cell holds every word, invisible, so the slot is as wide as the
+       widest and the underline never moves, and the typed line over them. */
+    .dev-splash__blank {
+      display: grid;
+      width: fit-content;
+      height: var(--rh);
+      margin-top: 0.08em;
+      line-height: var(--rh);
+      border-bottom: 0.09em solid var(--ember);
+    }
+    .dev-splash__blank > * {
+      grid-area: 1 / 1;
+      white-space: nowrap;
+    }
+    .dev-splash__sizer { visibility: hidden; }
+    .dev-splash__line { color: var(--ember); }
+    .dev-splash__caret {
+      display: inline-block;
+      width: 0.07em;
+      height: 0.9em;
+      margin-left: 0.05em;
+      /* Its own width back, so the caret after the widest word does not
+         widen the slot and stretch the underline. */
+      margin-right: -0.12em;
+      vertical-align: -0.1em;
+      background: var(--ember);
+      animation: dev-splash-caret 1s steps(2, jump-none) infinite;
+    }
+    @keyframes dev-splash-caret { 50% { opacity: 0; } }
+    .dev-splash__bar {
       position: absolute;
-      inset: -50%;
-      background:
-        radial-gradient(ellipse 600px 400px at 30% 40%, rgba(27, 44, 113, 0.4) 0%, transparent 70%),
-        radial-gradient(ellipse 500px 350px at 70% 60%, rgba(35, 57, 67, 0.35) 0%, transparent 70%);
-      animation: loading-caustic 6s ease-in-out infinite alternate;
-    }
-    @keyframes loading-caustic {
-      0%   { transform: translate(0, 0) scale(1); }
-      100% { transform: translate(-3%, 2%) scale(1.05); }
-    }
-    /* Marine snow — tiny triangles drifting down */
-    .loading-snow {
-      position: absolute;
-      top: -12px;
-      width: 0; height: 0;
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-bottom: 7px solid rgba(180, 210, 240, 0.18);
-      animation: loading-fall linear infinite;
-      will-change: transform, opacity;
-    }
-    /* Negative delays start particles already mid-fall so snow is visible from frame 1 */
-    .loading-snow:nth-child(1)  { left:  3%; animation-duration: 7s;   animation-delay: -2.1s;  border-bottom-width: 6px; border-left-width: 3px;   border-right-width: 3px; }
-    .loading-snow:nth-child(2)  { left: 11%; animation-duration: 10s;  animation-delay: -7.5s;  border-bottom-width: 4px; border-left-width: 2px;   border-right-width: 2px;   border-bottom-color: rgba(180, 210, 240, 0.10); }
-    .loading-snow:nth-child(3)  { left: 18%; animation-duration: 8.5s; animation-delay: -1.2s;  border-bottom-width: 7px; border-left-width: 3.5px; border-right-width: 3.5px; border-bottom-color: rgba(180, 210, 240, 0.20); }
-    .loading-snow:nth-child(4)  { left: 26%; animation-duration: 12s;  animation-delay: -9.0s;  border-bottom-width: 5px; border-left-width: 2.5px; border-right-width: 2.5px; border-bottom-color: rgba(180, 210, 240, 0.08); }
-    .loading-snow:nth-child(5)  { left: 33%; animation-duration: 9s;   animation-delay: -4.5s;  border-bottom-width: 8px; border-left-width: 4px;   border-right-width: 4px;   border-bottom-color: rgba(180, 210, 240, 0.22); }
-    .loading-snow:nth-child(6)  { left: 41%; animation-duration: 11s;  animation-delay: -6.3s;  border-bottom-width: 4px; border-left-width: 2px;   border-right-width: 2px;   border-bottom-color: rgba(180, 210, 240, 0.09); }
-    .loading-snow:nth-child(7)  { left: 49%; animation-duration: 8s;   animation-delay: -3.2s;  border-bottom-width: 6px; border-left-width: 3px;   border-right-width: 3px;   border-bottom-color: rgba(180, 210, 240, 0.16); }
-    .loading-snow:nth-child(8)  { left: 56%; animation-duration: 10.5s;animation-delay: -8.4s;  border-bottom-width: 5px; border-left-width: 2.5px; border-right-width: 2.5px; border-bottom-color: rgba(180, 210, 240, 0.11); }
-    .loading-snow:nth-child(9)  { left: 63%; animation-duration: 9.5s; animation-delay: -5.7s;  border-bottom-width: 7px; border-left-width: 3.5px; border-right-width: 3.5px; border-bottom-color: rgba(180, 210, 240, 0.19); }
-    .loading-snow:nth-child(10) { left: 70%; animation-duration: 12.5s;animation-delay: -10.0s; border-bottom-width: 4px; border-left-width: 2px;   border-right-width: 2px;   border-bottom-color: rgba(180, 210, 240, 0.07); }
-    .loading-snow:nth-child(11) { left: 77%; animation-duration: 8.5s; animation-delay: -0.8s;  border-bottom-width: 6px; border-left-width: 3px;   border-right-width: 3px;   border-bottom-color: rgba(180, 210, 240, 0.14); }
-    .loading-snow:nth-child(12) { left: 84%; animation-duration: 11.5s;animation-delay: -7.0s;  border-bottom-width: 5px; border-left-width: 2.5px; border-right-width: 2.5px; border-bottom-color: rgba(180, 210, 240, 0.10); }
-    .loading-snow:nth-child(13) { left: 91%; animation-duration: 9s;   animation-delay: -3.8s;  border-bottom-width: 7px; border-left-width: 3.5px; border-right-width: 3.5px; border-bottom-color: rgba(180, 210, 240, 0.17); }
-    .loading-snow:nth-child(14) { left: 96%; animation-duration: 10s;  animation-delay: -5.2s;  border-bottom-width: 4px; border-left-width: 2px;   border-right-width: 2px;   border-bottom-color: rgba(180, 210, 240, 0.08); }
-    @keyframes loading-fall {
-      0%   { opacity: 0; transform: translateY(0)    rotate(0deg)   translateX(0); }
-      8%   { opacity: 1; transform: translateY(9vh)   rotate(10deg)  translateX(3px); }
-      50%  { opacity: 1; transform: translateY(55vh)  rotate(120deg) translateX(15px); }
-      85%  { opacity: 1; transform: translateY(94vh)  rotate(200deg) translateX(-5px); }
-      100% { opacity: 0; transform: translateY(112vh) rotate(240deg) translateX(-10px); }
-    }
-    /* Title text */
-    .loading-title {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 38px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: rgba(232, 168, 64, 0.85);
-      text-shadow: 0 2px 16px rgba(232, 168, 64, 0.2);
-      margin-bottom: 32px;
-      z-index: 1;
-    }
-    /* Progress text */
-    .loading-status {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      font-size: 13px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.45);
-      z-index: 1;
-      min-height: 20px;
-      transition: opacity 0.3s ease;
-    }
-    /* Thin animated bar */
-    .loading-bar-track {
-      width: 180px;
-      height: 2px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 1px;
-      margin-top: 16px;
+      left: 50%;
+      bottom: calc(44px + env(safe-area-inset-bottom, 0px));
+      width: min(480px, calc(100% - 64px));
+      height: 4px;
+      transform: translateX(-50%);
+      border-radius: 2px;
+      background: rgba(42, 29, 18, 0.12);
       overflow: hidden;
-      z-index: 1;
     }
-    .loading-bar-fill {
+    .dev-splash__fill {
       height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, rgba(232, 168, 64, 0.6), rgba(150, 210, 255, 0.4));
-      border-radius: 1px;
-      transition: width 0.4s ease-out;
+      background: var(--ember);
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    @keyframes dev-splash-in { to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      #dev-splash.is-faced .dev-splash__lockup { animation: none; opacity: 1; }
+      .dev-splash__caret { animation: none; }
     }
     /* Perf overlay styles removed — now handled by PerfMonitor.js */
   </style>
 </head>
 <body>
-  <div id="loading-screen">
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-snow"></div>
-    <div class="loading-title">PolyFish</div>
-    <div class="loading-status" id="loading-status">Preparing</div>
-    <div class="loading-bar-track"><div class="loading-bar-fill" id="loading-bar"></div></div>
+  <div id="dev-splash" role="status" aria-label="Uncle Matt Makes: PolyFish. Loading.">
+    <div class="dev-splash__lockup">
+      <img class="dev-splash__portrait" alt="" width="384" height="384" decoding="async" />
+      <h1 class="dev-splash__mark">
+        Uncle Matt Makes:
+        <span class="dev-splash__blank" aria-hidden="true">
+          <span class="dev-splash__sizer">stuff</span>
+          <span class="dev-splash__sizer">simulations</span>
+          <span class="dev-splash__sizer">automata</span>
+          <span class="dev-splash__sizer">critter cams</span>
+          <span class="dev-splash__sizer">3d prints</span>
+          <span class="dev-splash__sizer">doughnuts</span>
+          <span class="dev-splash__sizer">mistakes</span>
+          <span class="dev-splash__sizer">games</span>
+          <span class="dev-splash__sizer">PolyFish</span>
+          <span class="dev-splash__line"><span class="dev-splash__typed"></span><span class="dev-splash__caret"></span></span>
+        </span>
+        <span class="visually-hidden">PolyFish</span>
+      </h1>
+    </div>
+    <div
+      class="dev-splash__bar"
+      role="progressbar"
+      aria-label="Loading"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="0"
+    >
+      <div class="dev-splash__fill"></div>
+    </div>
   </div>
   <!-- PerfMonitor creates its own DOM elements in dev mode -->
   <div id="hud" style="display:none;">

@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 
-export const VR_BUILD_VERSION = 'v1.0.1';
+export const VR_BUILD_VERSION = 'v1.1.0';
 
 const MAX_LINES = 16;
 const CANVAS_W = 512;

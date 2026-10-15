@@ -63,6 +63,9 @@ import { EditorMode } from "./modes/EditorMode.js";
 import { DesktopHints } from "./input/DesktopHints.js";
 import { TitleScreen } from "./systems/TitleScreen.js";
 import { CAPTURE, captureMode } from "./capture/CaptureMode.js";
+import { startDevSplash } from "./rendering/DevSplash.js";
+// Bitter 700, the splash wordmark's face (unclemattmakes.com's), latin only.
+import "@fontsource/bitter/latin-700.css";
 import { buildDevPanel } from "./systems/DevPanel.js";
 import { PerfMonitor } from "./systems/PerfMonitor.js";
 import { PopulationGraph } from "./systems/PopulationGraph.js";
@@ -380,19 +383,14 @@ if (_diagMode) {
 // ── Bootstrap ──────────────────────────────────────────────────
 const MINIMAL = _params.has("minimal"); // bare scene: terrain + water + lights only
 
-// ── Loading screen progress ─────────────────────────────────
-const _loadingStatusEl = document.getElementById("loading-status");
-const _loadingBarEl = document.getElementById("loading-bar");
+// ── Developer splash ("Uncle Matt Makes: PolyFish") ─────────
+// The loading screen. Capture mode skips it: the splash tool drives the scene
+// straight away and has no one to show it to.
+const _splashEl = document.getElementById("dev-splash");
+if (CAPTURE) _splashEl?.remove();
+const splash = startDevSplash(CAPTURE ? null : _splashEl);
 function loadingProgress(message, percent) {
-	if (_loadingStatusEl) _loadingStatusEl.textContent = message;
-	if (_loadingBarEl) _loadingBarEl.style.width = `${percent}%`;
-}
-function dismissLoadingScreen() {
-	const el = document.getElementById("loading-screen");
-	if (el) {
-		el.classList.add("fade-out");
-		el.addEventListener("transitionend", () => el.remove(), { once: true });
-	}
+	splash.progress(percent / 100);
 }
 
 async function init() {
@@ -906,12 +904,11 @@ async function init() {
 		GS,
 	};
 
-	// 18. Dismiss loading screen, then fade in from black
+	// 18. Tell the splash the scene is in; it fades once "PolyFish" has been
+	//     typed and held (or on a skip), and the scene fades in from black as it goes.
 	loadingProgress("Ready", 100);
-	dismissLoadingScreen();
-	// Brief pause so loading screen fade-out overlaps with the scene fade-in
-	await new Promise((r) => setTimeout(r, 400));
-	fadeOverlay.fadeIn(2000);
+	splash.ready();
+	splash.lifting.then(() => fadeOverlay.fadeIn(2000));
 
 	// 19. Load audio clips AFTER all heavy init (models, WASM, pools) is done
 	// so decoding doesn't compete with startup and cause frame drops.
@@ -1681,6 +1678,7 @@ function restartEcosystem() {
 
 // ── Start ──────────────────────────────────────────────────────
 init().catch((err) => {
+	splash.fail();
 	console.error("[PolyFish] Fatal error during init:", err);
 	diagLog(`FATAL: ${err?.message || err}\n${err?.stack || ""}`);
 });
