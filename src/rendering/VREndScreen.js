@@ -53,7 +53,7 @@ const CREDITS_HTML = `
 <div class="end-credits-spacer-xl"></div>
 <div class="end-thanks">Thank you for playing.</div>
 <div class="end-credits-spacer-lg"></div>
-<div class="end-copyright">\u00A9 2026 The Department of Silly Stuff, LLC</div>
+<div class="end-copyright">\u00A9 2026 Uncle Matt Makes</div>
 <div class="end-credits-spacer-xl"></div>
 `;
 
