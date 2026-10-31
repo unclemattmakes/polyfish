@@ -9,3 +9,6 @@ package-lock.json
 # Playwright run artifacts
 test-results/
 playwright-report/
+
+# wrangler dev state
+.wrangler/

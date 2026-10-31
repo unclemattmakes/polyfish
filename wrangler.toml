@@ -1,0 +1,18 @@
+# The site, served as static assets by a Cloudflare Worker with no script (it replaced Vercel in
+# 2026-11). Modelled on bitto-runner/worker/site/wrangler.toml.
+#
+#   npm run site:dev     build, then serve through wrangler on port 8799
+#   npm run site:deploy  build, then deploy
+#
+# Headers come from assets/_headers. An unknown path gets a plain 404, as on Vercel.
+# Custom domains, added when Matt switches them:
+#   [[routes]] pattern = "polyfish.unclemattmakes.com", custom_domain = true
+#   [[routes]] pattern = "polyfish.dosillystuff.com", custom_domain = true  (once that zone is on Cloudflare)
+name = "polyfish"
+compatibility_date = "2025-09-01"
+workers_dev = true
+preview_urls = false
+
+[assets]
+directory = "./dist"
+not_found_handling = "none"
