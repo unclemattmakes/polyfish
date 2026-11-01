@@ -7,13 +7,16 @@
 # Headers come from assets/_headers. An unknown path gets a plain 404, as on Vercel.
 # polyfish.unclemattmakes.com is this Worker's custom domain, which owns its DNS record. The
 # first deploy with it (2026-10-31) replaced the CNAME to Vercel (c01242e7b731aec3.vercel-dns-016.com,
-# DNS only); to go back, remove the route and re-add that CNAME. polyfish.dosillystuff.com joins
-# once that zone is on Cloudflare.
+# DNS only); to go back, remove the route and re-add that CNAME. polyfish.dosillystuff.com joined
+# the same way later that day, replacing CNAME polyfish -> c99d4012ec56bf8e.vercel-dns-016.com.
 name = "polyfish"
 compatibility_date = "2025-09-01"
 workers_dev = true
 preview_urls = false
-routes = [{ pattern = "polyfish.unclemattmakes.com", custom_domain = true }]
+routes = [
+  { pattern = "polyfish.unclemattmakes.com", custom_domain = true },
+  { pattern = "polyfish.dosillystuff.com", custom_domain = true },
+]
 
 [assets]
 directory = "./dist"
