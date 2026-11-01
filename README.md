@@ -166,7 +166,7 @@ The project includes an interactive series of articles documenting how PolyFish 
 
 ## Deployment
 
-The project deploys as a static site. A `vercel.json` is included for Vercel hosting (sets required COOP headers for SharedArrayBuffer support).
+The project deploys as a static site, served by a Cloudflare Worker with static assets (`wrangler.toml`). `npm run site:deploy` builds and deploys it; `npm run site:dev` serves the build locally through the same Worker. Headers, including COOP, are in `assets/_headers`.
 
 ## Third-Party Assets
 

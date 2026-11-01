@@ -1137,7 +1137,7 @@ WebXR support is handled by `/src/input/XRManager.js` with several companion ren
 
 **Food Throwing**: In VR, food throwing uses the controller's linear velocity (from `XRFrame` pose data) for natural throw physics. The throw force is the controller velocity plus an upward float component.
 
-**SharedArrayBuffer Requirement**: Jolt Physics runs on a Web Worker using SharedArrayBuffer. This requires specific HTTP headers (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`). The included `vercel.json` sets these headers for Vercel deployment. Local dev via Vite also sets them. All cross-thread control flags (step requested, step complete) must use `Atomics.store`/`Atomics.load` — never plain array writes — to guarantee correct ordering on ARM (Quest). See `PhysicsBuffers.js` for the buffer layout and `PhysicsProxy.js` / `physics.worker.js` for the synchronization protocol.
+**SharedArrayBuffer Requirement**: Jolt Physics runs on a Web Worker using SharedArrayBuffer. This requires specific HTTP headers (`Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp`). The deployed site sends only `Cross-Origin-Opener-Policy: same-origin-allow-popups` (`assets/_headers`), with no COEP, so in production Jolt falls back to the main thread. Local dev via Vite also sets them. All cross-thread control flags (step requested, step complete) must use `Atomics.store`/`Atomics.load` — never plain array writes — to guarantee correct ordering on ARM (Quest). See `PhysicsBuffers.js` for the buffer layout and `PhysicsProxy.js` / `physics.worker.js` for the synchronization protocol.
 
 ### Testing XR
 

@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "site:dev": "npm run build && npx --yes wrangler@4.151.1 dev --port 8799",
+    "site:deploy": "npm run build && npx --yes wrangler@4.151.1 deploy",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"

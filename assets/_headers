@@ -1,0 +1,9 @@
+# Read by the Cloudflare Worker that serves the site (wrangler.toml). Vite copies it to dist/
+# because assets/ is the public folder.
+# COOP as vercel.json set it. No COEP, so SharedArrayBuffer stays off and Jolt runs on the
+# main thread, as it did on Vercel.
+/*
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+# dist/assets/ holds only Vite's content-hashed output, so it can be cached for a year.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
