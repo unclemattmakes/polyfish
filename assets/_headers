@@ -2,8 +2,16 @@
 # because assets/ is the public folder.
 # COOP as vercel.json set it. No COEP, so SharedArrayBuffer stays off and Jolt runs on the
 # main thread, as it did on Vercel.
+# The rest of the /* block is the security set. No other origin frames the site. The
+# Permissions-Policy leaves xr-spatial-tracking, gyroscope and accelerometer at the browser's
+# default, because WebXR and the mobile tilt camera need them. Keep one /* block: Cloudflare drops
+# an earlier rule with the same pattern.
 /*
   Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Strict-Transport-Security: max-age=31536000
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self'
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 # dist/assets/ holds only Vite's content-hashed output, so it can be cached for a year.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
